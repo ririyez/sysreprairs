@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - SYSREPAIR{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div>
+        <h1><i class="bi bi-speedometer2"></i> Dashboard</h1>
+        <p class="text-muted">Selamat datang di SYSREPAIR</p>
+    </div>
+    <div>
+        <a href="{{ url_for('orders.tambah') }}" class="btn btn-primary">
+            <i class="bi bi-plus-circle"></i> Order Baru
+        </a>
+    </div>
+</div>
+
+<!-- Statistik Utama -->
+<div class="row">
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-icon text-primary">
+                <i class="bi bi-receipt"></i>
+            </div>
+            <div class="stat-value">{{ stats.total_orders }}</div>
+            <p class="stat-label">Total Pesanan</p>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-icon text-warning">
+                <i class="bi bi-hammer"></i>
+            </div>
+            <div class="stat-value">{{ stats.active_repairs }}</div>
+            <p class="stat-label">Reparasi Aktif</p>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-icon text-success">
+                <i class="bi bi-cash-coin"></i>
+            </div>
+            <div class="stat-value" id="monthly-income">Rp 0</div>
+            <p class="stat-label">Pendapatan Bulan Ini</p>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6">
+        <div class="stat-card">
+            <div class="stat-icon text-info">
+                <i class="bi bi-people"></i>
+            </div>
+            <div class="stat-value">{{ stats.total_customers }}</div>
+            <p class="stat-label">Total Pelanggan</p>
+        </div>
+    </div>
+</div>
+
+<!-- Charts -->
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="stat-card">
+            <h5 class="mb-3">Pendapatan 7 Hari Terakhir</h5>
+            <canvas id="incomeChart"></canvas>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="stat-card">
+            <h5 class="mb-3">Status Order</h5>
+            <canvas id="statusChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- Order Terbaru -->
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="stat-card">
+            <h5 class="mb-3">Order Terbaru</h5>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>No. Invoice</th>
+                            <th>Pelanggan</th>
+                            <th>Layanan</th>
+                            <th>Total</th>
+                            <th>Status</th>
+                            <th>Tanggal</th>
+                            <th>Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for order in stats.recent_orders %}
+                        <tr>
+                            <td><strong>{{ order.invoice_number }}</strong></td>
+                            <td>{{ order.customer.name }}</td>
+                            <td>{{ order.service.name }}</td>
+                            <td>
+                                <script>
+                                    document.write(formatRupiah({{ order.total_price }}));
+                                </script>
+                            </td>
+                            <td>
+                                <span class="badge badge-{{ order.status }}">
+                                    {{ order.get_status_display() }}
+                                </span>
+                            </td>
+                            <td>{{ order.received_date.strftime('%d-%m-%Y') }}</td>
+                            <td>
+                                <a href="{{ url_for('orders.detail', id=order.id) }}" class="btn btn-sm btn-info">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Data dari template
+    const monthlyIncome = {{ stats.monthly_income }};
+    const dailyIncome = {{ stats.daily_income | tojson }};
+    const statusData = {{ stats.status_data | tojson }};
+    
+    // Format monthly income
+    document.getElementById('monthly-income').textContent = formatRupiah(monthlyIncome);
+    
+    // Chart: Pendapatan 7 Hari
+    const incomeCtx = document.getElementById('incomeChart').getContext('2d');
+    new Chart(incomeCtx, {
+        type: 'line',
+        data: {
+            labels: dailyIncome.map(d => d.date),
+            datasets: [{
+                label: 'Pendapatan (Rp)',
+                data: dailyIncome.map(d => d.income),
+                borderColor: '#4CAF50',
+                backgroundColor: 'rgba(76, 175, 80, 0.1)',
+                borderWidth: 2,
+                fill: true,
+                tension: 0.4,
+                pointRadius: 4,
+                pointBackgroundColor: '#4CAF50',
+                pointHoverRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        callback: function(value) {
+                            return 'Rp ' + value.toLocaleString('id-ID');
+                        }
+                    }
+                }
+            }
+        }
+    });
+    
+    // Chart: Status Order
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(statusData),
+            datasets: [{
+                data: Object.values(statusData),
+                backgroundColor: [
+                    '#e3f2fd',
+                    '#fff3e0',
+                    '#e8f5e9',
+                    '#e0f2f1'
+                ],
+                borderColor: [
+                    '#1976d2',
+                    '#f57c00',
+                    '#388e3c',
+                    '#00796b'
+                ],
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    position: 'bottom'
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}
